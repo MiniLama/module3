@@ -1,0 +1,41 @@
+---
+- name: Резервное копирование конфигурации маршрутизаторов HQ-RTR и BR-RTR
+  hosts:
+  - hq-rtr
+  - br-rtr
+  gather_facts: no
+  tasks:
+
+    - name: Создание локальных папок для резервных копий
+      ansible.builtin.file:
+        path: "/etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/{{ item }}"
+        state: directory
+      loop:
+        - "frr"
+      delegate_to: localhost
+
+    - name: Копирование конфигурации FRR
+      ansible.builtin.fetch:
+        src: "/etc/frr/{{ item }}"
+        dest: "/etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/frr/"
+        flat: yes
+      loop:
+        - "daemons"
+        - "frr.conf"
+        - "frr.conf.sav"
+        - "vtysh.conf"
+      become: yes
+
+    - name: Копирование сохранённых правил iptables
+      ansible.builtin.fetch:
+        src: /root/rules
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/rules
+        flat: yes
+      become: yes
+
+    - name: Копирование конфигурации сетевых интерфейсов
+      ansible.builtin.fetch:
+        src: /etc/network/interfaces
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/interfaces
+        flat: yes
+      become: yes
