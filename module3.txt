@@ -1,0 +1,648 @@
+				Модуль 3.
+	
+ISP, HQ-SRV, BR-SRV, HQ-RTR, BR-RTR: root 1
+HQ-CLI: user 1
+(ЧТОБЫ ЗАЙТИ В ТЕРМИНАЛЕ su -  пароль: 1)
+
+ЧТОБЫ ВЫЙТИ ИЗ ФАЙЛА nano И СОХРАНИТЬ ИЗМЕНЕНИЯ НАДО НАЖАТЬ ctrl+o   ctrl+x
+ЧТОБЫ ВЫЙТИ ИЗ ФАЙЛА nano И НЕ СОХРАНЯТЬ ИЗМЕНЕНИЯ НАДО НАЖАТЬ ctrl+x (потом нажать n)
+
+ЧТОБЫ ВЫЙТИ ИЗ ФАЙЛА mcedit И СОХРАНИТЬ ИЗМЕНЕНИЯ НАДО НАЖАТЬ F2   F10
+ЧТОБЫ ВЫЙТИ ИЗ ФАЙЛА mcedit И НЕ СОХРАНЯТЬ ИЗМЕНЕНИЯ НАДО НАЖАТЬ F10 (потом выбрать no)
+
+
+
+	8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV
+
+	HQ-RTR
+
+systemctrl restart dnsmasq
+
+
+	HQ-CLI
+
+su -
+(1)
+systemctrl restart network
+ip -c a
+
+	BR-SRV
+
+mcedit /etc/ansible/hosts
+(НУЖНО НАЙТИ IP-АДРЕС "192.168.2.12" И ПОМЕНЯТЬ ЕГО НА "192.168.2.2")
+
+mkdir /etc/ansible/PC_INFO
+cd /etc/ansible/
+curl -O https://raw.githubusercontent.com/MiniLama/module3/refs/heads/main/inventory.yml
+
+(ЕСЛИ ВДРУГ НЕ СКАЧАЕТСЯ ССЫЛКА, ТО ДАННЫЕ СНИЗУ ↓↓↓)
+
+
+mcedit /etc/ansible/inventory.yml 
+
+---
+- name: Инвентаризация машин HQ-SRV и HQ-CLI
+  hosts:
+    - hq-srv
+    - hq-cli
+  gather_facts: yes
+  tasks:
+    - name: Создать отчёт с информацией рабочем месте
+      delegate_to: localhost
+      copy:
+    	dest: "/etc/ansible/PC_INFO/{{ ansible_hostname }}.yml"
+    	content: |
+      	  ---
+      	  Имя компьютера: "{{ ansible_hostname }}"
+      	  IP-адрес компьютера: "{{ ansible_default_ipv4.address }}"
+
+(ПОСЛЕ ПОСЛЕДНЕЙ СРОКИ НУЖНО ОБЯЗАТЕЛЬНО ДОБАВИТЬ ПРОБЕЛ!!!)
+
+
+
+mcedit /etc/ansible/inventory.yml
+(НУЖНО УБРАТЬ СЕРЫЕ НАДПИСИ:   ^M)
+(ЕСЛИ ЕСТЬ, ТО УБРАТЬ ТЕ МЕСТА ГДЕ ЕСТЬ СИНИЕ СТРЕЛОЧКИ (это значит там отступ с помощью TAB) НУЖНО СДЕЛАТЬ ТАКИЕ ЖЕ ОТСТУПЫ НО!!! ПРОБЕЛОМ)
+
+cd ~
+ansible-playbook /etc/ansible/inventory.yml
+(yes)
+ansible-playbook /etc/ansible/inventory.yml
+
+(НУЖНО ДВА РАЗА СДЕЛАТЬ КОМАНДУ)
+
+
+(ПРОВЕРКА: должны быть файлы hq-cli.yml, hq-srv.yml)
+ls -la /etc/ansible/PC_INFO
+cat /etc/ansible/PC_INFO/hq-cli.yml
+cat /etc/ansible/PC_INFO/hq-srv.yml
+
+
+
+
+
+
+
+	5. Настройте принт-сервер cups на сервере HQ-SRV.
+
+	HQ-SRV
+
+apt-get install cups cups-pdf -y
+systemctl enable --now cups
+
+mcedit /etc/cups/cupsd.conf
+(ВО ВСЕХ 4 БЛОКАХ <Location > НУЖНО ДОБАВИТЬ Allow all ПОСЛЕ НАДПИСИ "Order allow,deny" )
+
+systemctl restart cups
+
+
+	HQ-CLI
+
+su -
+(1)
+
+lpadmin -p CUPS -E -v ipp://hq-srv.au-team.irpo:631/printers/Cups-PDF -m everywhere
+lpoptions -d CUPS
+lpstat -p
+
+lpadmin -x Cups-PDF
+(ЕСЛИ ПИШЕТ, ЧТО ПРИНТЕР НЕ СУЩЕСТВУЕТ, ЭТО НОРМАЛНО!!!!)
+
+НА РАБОЧЕМ СТОЛЕ ОТКРЫТЬ: 
+Домашняя папка user -> Файловая система (слева) ->  etc  -> altlinux-release (файл внизу, нужно открыть) -> Принтер (сверху, выбрать CUPS, нажать "печать"))
+
+FireFox -> https://hq-srv.au-team.irpo:631
+(Дополнительно)
+(Принять риск и продолжить)
+
+Вкладка Принтеры
+Выбираем наш принтер.
+Жмем кнопку Показать все задания
+
+(СТАТУС ДОЛЖЕН БЫТЬ "ЗАВЕРШЕНО")
+
+
+
+
+
+	6. Реализуйте логирование при помощи rsyslog на устройствах HQ-RTR, BR-RTR, BR-SRV
+
+	HQ-SRV
+
+apt-get install rsyslog -y
+
+mcedit /etc/rsyslog.d/00_common.conf
+
+module(load="imtcp").....
+input(type="imtcp" port="514")
+(НУЖНО НАЙТИ ЭТИ 2 СТРОЧКИ И УДАЛИТЬ СИМВОЛ #)
+
+$template RemoteLogs, "/opt/%HOSTNAME%/rsyslog.txt"
+*.* ?RemoteLogs
+& stop
+(ЭТИ 3 СТРОЧКИ НУЖНО ДОБАВИТЬ В КОНЦЕ ФАЙЛА)
+
+systemctl enable rsyslog
+systemctl restart rsyslog
+
+
+	HQ-RTR
+
+nano /etc/rsyslog.conf
+
+module(load="imklog")...
+module(load="immark") ...
+(НУЖНО НАЙТИ ЭТИ 2 СТРОЧКИ И УДАЛИТЬ СИМВОЛ #)
+
+module(load="imjournal")
+(НУЖНО ДОБАВИТЬ СТРОЧКУ ПОСЛЕ  "module(load="immark")")
+
+*.warning @@192.168.1.2:514
+(ЭТУ СТРОЧКУ НУЖНО ДОБАВИТЬ В САМОМ КОНЦЕ ФАЙЛА)
+
+
+systemctl restart rsyslog
+
+
+	BR-RTR
+
+nano /etc/rsyslog.conf
+
+module(load="imklog")...
+module(load="immark") ...
+(НУЖНО НАЙТИ ЭТИ 2 СТРОЧКИ И УДАЛИТЬ СИМВОЛ #)
+
+module(load="imjournal")
+(НУЖНО ДОБАВИТЬ СТРОЧКУ ПОСЛЕ  "module(load="immark")")
+
+*.warning @@192.168.1.2:514
+(ЭТУ СТРОЧКУ НУЖНО ДОБАВИТЬ В САМОМ КОНЦЕ ФАЙЛА)
+
+
+systemctl restart rsyslog
+
+
+	
+	BR-SRV
+
+sudo apt-get update
+apt-get install rsyslog rsyslog-journal -y
+
+mcedit /etc/rsyslog.d/00_common.conf
+
+module(load="imjournal")...
+module(load="imklog")....
+module(load="immark")....
+(НУЖНО НАЙТИ ЭТИ 3 СТРОЧКИ И УДАЛИТЬ СИМВОЛ #)
+
+*.warning @@192.168.1.2:514
+(ЭТУ СТРОЧКУ НУЖНО ДОБАВИТЬ В САМОМ КОНЦЕ ФАЙЛА)
+
+
+systemctl enable rsyslog
+systemctl restart rsyslog
+
+
+
+	HQ-SRV
+
+ls /opt
+(ДОЛЖНО БЫТЬ 3 ФАЙЛА: br-rtr, br-srv, hq-rtr)
+
+
+	BR-SRV
+
+logger -p user.info "Test info"
+logger -p user.warning "Test warning"
+logger -p user.error "Test error"
+
+
+	HQ-SRV
+
+mcedit /opt/br-srv/rsyslog.txt
+(ДОЛЖНО БЫТЬ 2 ЗАПИСИ СРЕДИ ВСЕХ: Test warning и Test error)
+
+mcedit /etc/logrotate.d/rsyslog
+/opt/*/rsyslog.txt {
+	weekly
+	minsize 10M
+	compress
+	missingok
+	notifempty
+	create 0644 root root
+	rotate 4
+	dateext
+}
+
+
+
+
+
+	7. На сервере HQ-SRV реализуйте мониторинг устройств с помощью открытого программного обеспечения.
+
+	HQ-SRV
+
+mkdir ~/prometheus
+cd ~/prometheus
+curl -O https://raw.githubusercontent.com/MiniLama/module3/refs/heads/main/prometheus.yml
+
+(ЕСЛИ ВДРУГ НЕ СКАЧАЕТСЯ ССЫЛКА, ТО ДАННЫЕ СНИЗУ ↓↓↓)
+
+
+mcedit ~/prometheus/prometheus.yml
+global:
+  scrape_interval: 15s 
+scrape_configs: 
+  - job_name: 'prometheus' 
+    static_configs: 
+      - targets: ['localhost:9090']
+
+  - job_name: 'nodes'
+    static_configs: 
+      - targets: ['192.168.1.1:9100'] 
+      - targets: ['192.168.4.1:9100'] 
+      - targets: ['192.168.4.2:9100']
+
+
+mcedit ~/prometheus/prometheus.yml
+(НУЖНО УБРАТЬ СЕРЫЕ НАДПИСИ:   ^M)
+
+cd ~
+sudo apt-get install docker-ce -y
+sudo systemctl start docker
+systemctl status docker
+(ctrl+c)
+
+docker run -d \
+--name prometheus \
+-p 9090:9090 \
+-v ~/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+prom/prometheus
+
+
+
+	HQ-CLI
+
+FireFox -> 192.168.1.2:9090 (сайт должен работать)
+
+
+	BR-SRV
+
+apt-get install prometheus-node_exporter -y
+systemctl enable --now prometheus-node_exporter.service
+systemctl status prometheus-node_exporter.service
+(ctrl+c)
+
+
+	HQ-RTR
+
+wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz
+
+tar -zxf node_exporter-1.8.2.linux-amd64.tar.gz
+cd node_exporter-1.8.2.linux-amd64/
+cp node_exporter /usr/local/bin/
+cd ..
+rm -rf node_exporter-1.8.2.linux-amd64 && rm -f node_exporter-1.8.2.linux-amd64.tar.gz
+
+useradd --no-create-home --shell /bin/false nodeusr
+chown -R nodeusr:nodeusr /usr/local/bin/
+chown -R nodeusr:nodeusr /usr/local/bin/node_exporter
+
+cd /etc/systemd/system/
+wget https://raw.githubusercontent.com/MiniLama/module3/refs/heads/main/node_exporter.service
+
+(ЕСЛИ ВДРУГ НЕ СКАЧАЕТСЯ ССЫЛКА, ТО ДАННЫЕ СНИЗУ ↓↓↓)
+
+nano /etc/systemd/system/node_exporter.service
+[Unit]
+Description=Node Exporter Service
+After=network.target
+
+[Service]
+User=nodeusr
+Group=nodeusr
+Type=simple
+ExecStart=/usr/local/bin/node_exporter
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+
+cd ~
+systemctl enable node_exporter.service
+systemctl start node_exporter.service
+
+
+
+
+
+	BR-RTR
+
+wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz
+
+tar -zxf node_exporter-1.8.2.linux-amd64.tar.gz
+cd node_exporter-1.8.2.linux-amd64/
+cp node_exporter /usr/local/bin/
+cd ..
+rm -rf node_exporter-1.8.2.linux-amd64 && rm -f node_exporter-1.8.2.linux-amd64.tar.gz
+
+useradd --no-create-home --shell /bin/false nodeusr
+chown -R nodeusr:nodeusr /usr/local/bin/
+chown -R nodeusr:nodeusr /usr/local/bin/node_exporter
+
+cd /etc/systemd/system/
+wget https://raw.githubusercontent.com/MiniLama/module3/refs/heads/main/node_exporter.service
+
+(ЕСЛИ ВДРУГ НЕ СКАЧАЕТСЯ ССЫЛКА, ТО ДАННЫЕ СНИЗУ ↓↓↓)
+
+
+nano /etc/systemd/system/node_exporter.service
+[Unit]
+Description=Node Exporter Service
+After=network.target
+
+[Service]
+User=nodeusr
+Group=nodeusr
+Type=simple
+ExecStart=/usr/local/bin/node_exporter
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+
+cd ~
+systemctl enable node_exporter.service
+systemctl start node_exporter.service
+
+
+
+	HQ-CLI
+
+FireFox -> 192.168.1.2:9090/targets (должы быть записи и статус всех машин должен быть UP)
+
+
+
+
+
+
+
+
+	3. Перенастройте ip-туннель с базового до уровня туннеля, обеспечивающего шифрование трафика
+
+	HQ-RTR
+
+apt update
+apt install strongswan libcharon-extra-plugins -y
+(Ok)
+
+nano /etc/ipsec.sh
+ip link add vti0 type vti local 172.16.4.2 remote 172.16.5.2 key 1
+ip addr add 10.10.10.1/30 dev vti0
+ip link set vti0 up
+
+chmod +x /etc/ipsec.sh
+
+nano /etc/ipsec.conf
+(НИЖНИЕ СТРОКИ НУЖНО НАПИСАТЬ ПОСЛЕ НАДПИСИ # Add connections here)
+
+conn tunnel
+	leftupdown=/etc/ipsec.sh
+	left=172.16.4.2
+	leftsubnet=0.0.0.0/0
+	right=172.16.5.2
+	rightsubnet=0.0.0.0/0
+	authby=secret
+	keyexchange=ikev2
+	auto=start
+	mark=1
+	type=tunnel
+	esp=aes256-sha256-modp1024
+
+nano /etc/ipsec.secrets
+172.16.4.2 172.16.5.2 : PSK "P@ssw0rd"
+(ЭТУ СТРОКУ НУЖНО НАПИСАТЬ ВНИЗУ)
+
+nano /etc/strongswan.d/charon.conf
+Ctrl+W (нажать)
+install_routes (НАПИСАТЬ И НАЖАТЬ ENTER)
+
+install_routes = no
+(НУЖНО УБРАТЬ ЗНАК # . ТАКЖЕ НУЖНО УДАЛИТЬ yes И НАПИСАТЬ no) 
+
+nano /etc/network/interfaces
+(ЗДЕСЬ НУЖНО НАЙТИ "auto gre1" И УДАЛИТЬ ЭТУ НАДПИСЬ И СТРОКИ СНИЗУ)
+
+ip tunnel del gre1
+vtysh
+conf t
+no interface gre1
+exit
+write memory
+exit
+
+ipsec restart
+
+
+	BR-RTR
+
+apt update
+apt install strongswan libcharon-extra-plugins -y
+(Ok)
+
+nano /etc/ipsec.sh
+ip link add vti0 type vti local 172.16.5.2 remote 172.16.4.2 key 1
+ip addr add 10.10.10.2/30 dev vti0
+ip link set vti0 up
+
+chmod +x /etc/ipsec.sh
+
+nano /etc/ipsec.conf
+(НИЖНИЕ СТРОКИ НУЖНО НАПИСАТЬ ПОСЛЕ НАДПИСИ # Add connections here)
+
+conn tunnel
+	leftupdown=/etc/ipsec.sh
+	left=172.16.5.2
+	leftsubnet=0.0.0.0/0
+	right=172.16.4.2
+	rightsubnet=0.0.0.0/0
+	authby=secret
+	keyexchange=ikev2
+	auto=start
+	mark=1
+	type=tunnel 
+	esp=aes256-sha256-modp1024
+
+nano /etc/ipsec.secrets
+172.16.5.2 172.16.4.2 : PSK "P@ssw0rd"
+(ЭТУ СТРОКУ НУЖНО НАПИСАТЬ ВНИЗУ)
+
+nano /etc/strongswan.d/charon.conf
+Ctrl+W (нажать)
+install_routes (НАПИСАТЬ И НАЖАТЬ ENTER)
+
+install_routes = no
+(НУЖНО УБРАТЬ ЗНАК # . ТАКЖЕ НУЖНО УДАЛИТЬ yes И НАПИСАТЬ no) 
+
+
+nano /etc/network/interfaces
+(ЗДЕСЬ НУЖНО НАЙТИ "auto gre1" И УДАЛИТЬ ЭТУ НАДПИСЬ И СТРОКИ СНИЗУ)
+
+ip tunnel del gre1
+vtysh
+conf t
+no interface gre1
+exit
+write memory
+exit
+
+ipsec restart
+ipsec status
+
+
+
+	BR-RTR
+(ПРОВЕРКА. ДЕЛАТЬ НЕ ОБЯЗАТЕЛЬНО)
+
+apt install tcpdump -y
+tcpdump -i eth0 -n -p esp
+
+	HQ-RTR
+ping 10.10.10.2
+
+
+
+
+
+
+
+	4. Настройте межсетевой экран на маршрутизаторах HQ-RTR и BR-RTR на сеть в сторону ISP
+
+	HQ-RTR
+
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -i eth0 -p tcp -m multiport --dports 22,53,80,443,2024 -j ACCEPT
+iptables -A INPUT -i eth0 -p udp -m multiport --dports 53,123,500,4500 -j ACCEPT
+iptables -A INPUT -i eth0 -p icmp -j ACCEPT
+iptables -A INPUT -p esp -j ACCEPT
+iptables -A FORWARD -p esp -j ACCEPT
+iptables -A INPUT -i eth0 -m state --state NEW -j DROP
+iptables -A OUTPUT -j ACCEPT
+iptables-save > /root/rules
+
+iptables -L -v
+ipsec status
+
+	BR-RTR
+
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -i eth0 -p tcp -m multiport --dports 22,53,80,443,2024 -j ACCEPT
+iptables -A INPUT -i eth0 -p udp -m multiport --dports 53,123,500,4500 -j ACCEPT
+iptables -A INPUT -i eth0 -p icmp -j ACCEPT
+iptables -A INPUT -p esp -j ACCEPT
+iptables -A FORWARD -p esp -j ACCEPT
+iptables -A INPUT -i eth0 -m state --state NEW -j DROP
+iptables -A OUTPUT -j ACCEPT
+iptables-save > /root/rules
+
+iptables -L -v
+ipsec status
+
+*(ЕСЛИ ВДРУГ НУЖНО БУДЕТ УДАЛИТЬ IPTABLES НУЖНО СДЕЛАТЬ ТАК:
+1) sudo iptables -t filter -L --line-numbers -n
+2) посмотреть какое правило нужно удалить и под каким оно номером (num)
+3) sudo iptables -t filter -D INPUT/FORWARD/OUTPUT 2(цифру пишем которая была в прошлой команде)
+(INPUT/FORWARD/OUTPUT смотря что писали до этого в команде ↑ ↑ ↑)
+
+	HQ-CLI
+
+ping 192.168.4.2
+
+
+
+
+
+
+
+	9. Реализуйте механизм резервного копирования конфигурации для машин HQ-RTR и BR-RTR, через Ansible на BR-SRV
+
+	BR-SRV
+
+mkdir /etc/ansible/NETWORK_INFO
+cd /etc/ansible/
+curl -O https://raw.githubusercontent.com/MiniLama/module3/refs/heads/main/backup.yml
+
+(ЕСЛИ ВДРУГ НЕ СКАЧАЕТСЯ ССЫЛКА, ТО ДАННЫЕ СНИЗУ ↓↓↓)
+
+mcedit /etc/ansible/backup.yml
+
+---
+- name: Резервное копирование конфигурации маршрутизаторов HQ-RTR и BR-RTR
+  hosts:
+  - hq-rtr
+  - br-rtr
+  gather_facts: no
+  tasks:
+
+    - name: Создание локальных папок для резервных копий
+      ansible.builtin.file:
+        path: "/etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/{{ item }}"
+        state: directory
+      loop:
+        - "frr"
+      delegate_to: localhost
+
+    - name: Копирование конфигурации FRR
+      ansible.builtin.fetch:
+        src: "/etc/frr/{{ item }}"
+        dest: "/etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/frr/"
+        flat: yes
+      loop:
+        - "daemons"
+        - "frr.conf"
+        - "frr.conf.sav"
+        - "vtysh.conf"
+      become: yes
+
+    - name: Копирование сохранённых правил iptables
+      ansible.builtin.fetch:
+        src: /root/rules
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/rules
+        flat: yes
+      become: yes
+
+    - name: Копирование конфигурации сетевых интерфейсов
+      ansible.builtin.fetch:
+        src: /etc/network/interfaces
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/interfaces
+        flat: yes
+      become: yes
+
+
+mcedit /etc/ansible/backup.yml 
+(НУЖНО УБРАТЬ СЕРЫЕ НАДПИСИ:   ^M)
+
+cd ~
+ansible-playbook /etc/ansible/backup.yml
+ansible-playbook /etc/ansible/backup.yml
+(НУЖНО ДВА РАЗА СДЕЛАТЬ КОМАНДУ)
+
+(ПРОВЕРКА: должны быть папки hq-rtr, br-rtr. В ЭТИХ ПАПКАХ ДОЛЖНЫ БЫТЬ ФАЙЛЫ: rules, interfaces)
+ls -la /etc/ansible/NETWORK_INFO
+ls -la /etc/ansible/NETWORK_INFO/hq-rtr
+ls -la /etc/ansible/NETWORK_INFO/br-rtr
+
+cat /etc/ansible/NETWORK_INFO/hq-rtr/interfaces
+
+
+
+
+
+
+
+
+
